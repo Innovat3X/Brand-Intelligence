@@ -12,7 +12,7 @@ const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
     "http://127.0.0.1:8000/api";
 
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 180_000;
 
 export class ApiError extends Error {
     status: number;
