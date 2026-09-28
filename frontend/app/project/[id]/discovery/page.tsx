@@ -26,6 +26,7 @@ function extractQuestions(value: unknown): string[] {
         value.questions,
         value.interview_questions,
         value.follow_up_questions,
+        value.open_questions,
     ];
 
     for (const candidate of candidates) {
@@ -42,6 +43,18 @@ function extractQuestions(value: unknown): string[] {
     }
 
     return [];
+}
+
+function unwrapWorkflowOutput(value: unknown): unknown {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    if (isRecord(value.result)) {
+        return value.result;
+    }
+
+    return value;
 }
 
 const workflowStages = [
@@ -109,10 +122,31 @@ export default function DiscoveryPage() {
 
     const discoveryRun = latestRun("discovery");
 
-    const discoveryData = getStageData(
+    /*
+     * Prefer the latest workflow output.
+     *
+     * The AIML service returns:
+     * {
+     *   "result": {
+     *      ...discovery output...
+     *   }
+     * }
+     *
+     * The saved brand state may still be empty immediately after
+     * the workflow finishes, so the workflow result must be preferred.
+     */
+    const workflowDiscoveryData = unwrapWorkflowOutput(
+        discoveryRun?.output_data,
+    );
+
+    const savedDiscoveryData = getStageData(
         brand?.data,
         "discovery",
     );
+
+    const discoveryData = hasContent(workflowDiscoveryData)
+        ? workflowDiscoveryData
+        : savedDiscoveryData;
 
     const [idea, setIdea] = useState("");
     const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -640,7 +674,9 @@ export default function DiscoveryPage() {
                                         Step 3 · Founder perspective
                                     </span>
 
-                                    <h2>Clarify what the analysis cannot know.</h2>
+                                    <h2>
+                                        Clarify what the analysis cannot know.
+                                    </h2>
 
                                     <p
                                         className="muted"

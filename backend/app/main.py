@@ -45,6 +45,18 @@ app.add_middleware(
 
 
 @app.get(
+    "/",
+    tags=["system"],
+)
+def root() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "message": "Brand Intelligence backend is running",
+    }
+
+
+@app.get(
     "/health",
     tags=["system"],
 )
