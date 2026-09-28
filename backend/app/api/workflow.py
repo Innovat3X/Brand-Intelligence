@@ -10,6 +10,10 @@ from app.models.project import Project
 from app.models.workflow_run import WorkflowRun
 from app.services import brand_service
 from app.services.database import get_db
+from app.services.llm import (
+    AIMLServiceError,
+    HTTPAIMLService,
+)
 
 
 router = APIRouter()
@@ -23,6 +27,18 @@ ALLOWED_STAGES = {
     "challenge",
     "deliver",
 }
+
+
+AIML_STAGES = {
+    "discovery",
+    "positioning",
+    "shape",
+    "visualize",
+    "challenge",
+}
+
+
+aiml_service = HTTPAIMLService()
 
 
 class WorkflowRunRequest(BaseModel):
@@ -104,7 +120,7 @@ def _get_workflow_run_or_404(
     response_model=WorkflowRunResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def create_workflow_run(
+async def create_workflow_run(
     project_id: str,
     payload: WorkflowRunRequest,
     db: Session = Depends(get_db),
@@ -125,6 +141,8 @@ def create_workflow_run(
             },
         )
 
+    now = datetime.now(timezone.utc)
+
     workflow_run = WorkflowRun(
         project_id=project_id,
         stage=stage,
@@ -134,6 +152,79 @@ def create_workflow_run(
 
     db.add(workflow_run)
     db.commit()
+    db.refresh(workflow_run)
+
+    # Deliver is an assembly/export stage and does not
+    # call the AIML service.
+    if stage not in AIML_STAGES:
+        return workflow_run
+
+    workflow_run.status = "running"
+    workflow_run.started_at = now
+
+    db.commit()
+    db.refresh(workflow_run)
+
+    brand_state = brand_service.get_brand_state(
+        db=db,
+        project_id=project_id,
+    )
+
+    context: dict[str, Any] = {}
+
+    if brand_state is not None:
+        context = dict(
+            brand_state.data or {}
+        )
+
+    try:
+        output_data = await aiml_service.run_stage(
+            project_id=project_id,
+            stage=stage,
+            input_data=payload.input_data,
+            context=context,
+        )
+
+    except AIMLServiceError as exc:
+        completed_at = datetime.now(timezone.utc)
+
+        workflow_run.status = "failed"
+        workflow_run.error_message = str(exc)
+        workflow_run.completed_at = completed_at
+
+        db.commit()
+        db.refresh(workflow_run)
+
+        return workflow_run
+
+    except Exception as exc:
+        completed_at = datetime.now(timezone.utc)
+
+        workflow_run.status = "failed"
+        workflow_run.error_message = (
+            f"Unexpected workflow execution error: {exc}"
+        )
+        workflow_run.completed_at = completed_at
+
+        db.commit()
+        db.refresh(workflow_run)
+
+        return workflow_run
+
+    workflow_run.status = "completed"
+    workflow_run.output_data = output_data
+    workflow_run.completed_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(workflow_run)
+
+    brand_service.update_stage(
+        db=db,
+        project_id=project_id,
+        stage=stage,
+        output_data=output_data,
+    )
+
     db.refresh(workflow_run)
 
     return workflow_run

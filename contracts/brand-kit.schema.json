@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DiscoveryOutput",
+  "description": "Structured output produced by the Discovery stage of the AI brand intelligence workflow.",
+  "type": "object",
+  "required": [
+    "problem",
+    "target_users",
+    "user_segments",
+    "pain_points",
+    "context",
+    "goals",
+    "constraints",
+    "assumptions",
+    "open_questions"
+  ],
+  "properties": {
+    "problem": {
+      "type": "string"
+    },
+    "target_users": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "user_segments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pain_points": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context": {
+      "type": "string"
+    },
+    "goals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

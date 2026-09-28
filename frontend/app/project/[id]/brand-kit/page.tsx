@@ -14,11 +14,35 @@ import { VisualIdentity } from "../../../../components/brand-kit/VisualIdentity"
 
 import { useBrandKit } from "../../../../hooks/useBrandKit";
 import { useProject } from "../../../../hooks/useProject";
+import { useWorkflow } from "../../../../hooks/useWorkflow";
 
 import {
     getStageData,
     isRecord,
 } from "../../../../lib/brand";
+
+
+type StageData = Record<
+    string,
+    unknown
+>;
+
+
+type ColorView = {
+    name: string;
+    hex: string;
+    role?: string;
+};
+
+
+type NamingOptionView = {
+    name: string;
+    rationale?: string;
+    territory?: string;
+    strengths: string[];
+    concerns: string[];
+};
+
 
 function readString(
     value: unknown,
@@ -33,6 +57,7 @@ function readString(
     return undefined;
 }
 
+
 function readStrings(
     value: unknown,
 ): string[] {
@@ -40,993 +65,1399 @@ function readStrings(
         return [];
     }
 
-    return value.filter(
-        (item): item is string =>
-            typeof item === "string" &&
-            item.trim().length > 0,
-    );
+    return value
+        .filter(
+            (item): item is string =>
+                typeof item === "string" &&
+                item.trim().length > 0,
+        )
+        .map(
+            (item) => item.trim(),
+        );
 }
 
-function readPriority(
+
+function readText(
     value: unknown,
-): LaunchAsset["priority"] {
+): string | undefined {
     if (
-        value === "now" ||
-        value === "next" ||
-        value === "later"
+        typeof value === "string"
     ) {
-        return value;
+        return readString(value);
+    }
+
+    if (
+        Array.isArray(value)
+    ) {
+        const values =
+            readStrings(value);
+
+        if (
+            values.length > 0
+        ) {
+            return values.join(", ");
+        }
     }
 
     return undefined;
 }
 
-const workflowStages = [
-    {
-        number: "01",
-        title: "Discover",
-        description: "Understand the opportunity",
-        active: false,
-    },
-    {
-        number: "02",
-        title: "Position",
-        description: "Choose the strategic direction",
-        active: false,
-    },
-    {
-        number: "03",
-        title: "Shape",
-        description: "Build the brand expression",
-        active: false,
-    },
-    {
-        number: "04",
-        title: "Visualize",
-        description: "Explore the visual identity",
-        active: false,
-    },
-    {
-        number: "05",
-        title: "Challenge",
-        description: "Stress-test the decisions",
-        active: false,
-    },
-    {
-        number: "06",
-        title: "Deliver",
-        description: "Assemble the final system",
-        active: true,
-    },
-];
 
-export default function BrandKitPage() {
-    const router = useRouter();
+function asStageData(
+    value: unknown,
+): StageData {
+    return isRecord(value)
+        ? value
+        : {};
+}
 
-    const params = useParams<{
-        id?: string;
-    }>();
 
-    const projectId =
-        params?.id ?? null;
+function unwrapWorkflowOutput(
+    value: unknown,
+): StageData {
+    if (!isRecord(value)) {
+        return {};
+    }
 
-    const {
-        project,
-        loading: projectLoading,
-        error: projectError,
-    } = useProject(projectId);
+    if (
+        isRecord(
+            value.result,
+        )
+    ) {
+        return value.result;
+    }
 
-    const {
-        brand,
-        loading: brandLoading,
-        error: brandError,
-    } = useBrandKit(projectId);
+    return value;
+}
 
-    const deliverData =
-        getStageData(
-            brand?.data,
-            "deliver",
+
+function getSelectedDirection(
+    positioningData: unknown,
+): StageData {
+    const positioning =
+        asStageData(
+            positioningData,
         );
 
-    const assembled = useMemo(() => {
-        if (!isRecord(deliverData)) {
-            return {
-                name:
-                    project?.name ??
-                    "Untitled brand",
+    const selected =
+        [
+            positioning.selected_direction,
+            positioning.selectedDirection,
+            positioning.chosen_direction,
+            positioning.chosenDirection,
+        ];
 
-                tagline: undefined,
-                summary: undefined,
-
-                positioning: undefined,
-                audience: undefined,
-                valueProposition:
-                    undefined,
-                differentiation:
-                    undefined,
-                promise: undefined,
-
-                personality:
-                    [] as string[],
-                voicePrinciples:
-                    [] as string[],
-                doExamples:
-                    [] as string[],
-                dontExamples:
-                    [] as string[],
-
-                visualDirection:
-                    undefined,
-                typography:
-                    [] as string[],
-                imagery:
-                    [] as string[],
-
-                colors:
-                    [] as Array<{
-                        name: string;
-                        hex: string;
-                        role?: string;
-                    }>,
-
-                assets:
-                    [] as LaunchAsset[],
-            };
+    for (
+        const candidate of selected
+    ) {
+        if (
+            isRecord(candidate)
+        ) {
+            return candidate;
         }
+    }
 
-        const strategy =
-            isRecord(
-                deliverData.strategy,
+    const directions =
+        positioning.directions ??
+        positioning.positioning_directions ??
+        positioning.options;
+
+    if (
+        Array.isArray(directions)
+    ) {
+        const first =
+            directions.find(
+                isRecord,
+            );
+
+        if (first) {
+            return first;
+        }
+    }
+
+    return {};
+}
+
+
+function getPersonality(
+    shapeData: unknown,
+): {
+    traits: string[];
+    avoidTraits: string[];
+} {
+    const shape =
+        asStageData(
+            shapeData,
+        );
+
+    const personality =
+        asStageData(
+            shape.personality,
+        );
+
+    return {
+        traits:
+            readStrings(
+                personality.traits ??
+                personality.attributes ??
+                shape.traits,
+            ),
+
+        avoidTraits:
+            readStrings(
+                personality.avoid_traits ??
+                personality.avoidTraits ??
+                shape.avoid_traits ??
+                shape.traits_to_avoid,
+            ),
+    };
+}
+
+
+function getVoice(
+    shapeData: unknown,
+): {
+    principles: string[];
+    doExamples: string[];
+    dontExamples: string[];
+} {
+    const shape =
+        asStageData(
+            shapeData,
+        );
+
+    const voice =
+        asStageData(
+            shape.voice,
+        );
+
+    return {
+        principles:
+            readStrings(
+                voice.principles ??
+                voice.voice_principles ??
+                shape.voice_principles,
+            ),
+
+        doExamples:
+            readStrings(
+                voice.do_examples ??
+                voice.doExamples ??
+                voice.do,
+            ),
+
+        dontExamples:
+            readStrings(
+                voice.dont_examples ??
+                voice.dontExamples ??
+                voice.avoid,
+            ),
+    };
+}
+
+
+function getVisualIdentity(
+    visualizeData: unknown,
+): {
+    direction?: string;
+    typography: string[];
+    imagery: string[];
+    colors: ColorView[];
+} {
+    const visualize =
+        asStageData(
+            visualizeData,
+        );
+
+    const visual =
+        isRecord(
+            visualize.visual,
+        )
+            ? visualize.visual
+            : visualize;
+
+    const rawTypography =
+        Array.isArray(
+            visual.typography,
+        )
+            ? visual.typography
+            : [];
+
+    const typography =
+        rawTypography
+            .filter(isRecord)
+            .map(
+                (
+                    item,
+                ): string | undefined => {
+                    const name =
+                        readString(
+                            item.name,
+                        ) ??
+                        readString(
+                            item.font,
+                        );
+
+                    if (!name) {
+                        return undefined;
+                    }
+
+                    const role =
+                        readString(
+                            item.role,
+                        );
+
+                    const style =
+                        readString(
+                            item.style,
+                        );
+
+                    if (
+                        role &&
+                        style
+                    ) {
+                        return `${name} — ${role} — ${style}`;
+                    }
+
+                    if (role) {
+                        return `${name} — ${role}`;
+                    }
+
+                    if (style) {
+                        return `${name} — ${style}`;
+                    }
+
+                    return name;
+                },
             )
-                ? deliverData.strategy
-                : deliverData;
+            .filter(
+                (
+                    item,
+                ): item is string =>
+                    Boolean(item),
+            );
 
-        const voice =
-            isRecord(
-                deliverData.voice,
-            )
-                ? deliverData.voice
-                : {};
+    const rawColors =
+        Array.isArray(
+            visual.colors,
+        )
+            ? visual.colors
+            : [];
 
-        const visual =
-            isRecord(
-                deliverData.visual_identity,
-            )
-                ? deliverData.visual_identity
-                : isRecord(
-                    deliverData.visual,
-                )
-                    ? deliverData.visual
-                    : {};
-
-        const rawColors =
-            Array.isArray(
-                visual.colors,
-            )
-                ? visual.colors
-                : [];
-
-        const colors =
-            rawColors
-                .filter(isRecord)
-                .map((color) => ({
+    const colors =
+        rawColors
+            .filter(isRecord)
+            .map(
+                (
+                    color,
+                    index,
+                ): ColorView => ({
                     name:
                         readString(
                             color.name,
                         ) ??
-                        "Untitled color",
+                        `Color ${index + 1}`,
 
                     hex:
                         readString(
                             color.hex,
                         ) ??
+                        readString(
+                            color.value,
+                        ) ??
                         "#000000",
 
-                    role: readString(
-                        color.role,
-                    ),
-                }));
+                    role:
+                        readString(
+                            color.role,
+                        ),
+                }),
+            );
 
-        const rawAssets =
-            Array.isArray(
-                deliverData.launch_assets,
+    return {
+        direction:
+            readString(
+                visual.direction,
+            ) ??
+            readString(
+                visual.visual_direction,
+            ),
+
+        typography,
+
+        imagery:
+            readStrings(
+                visual.imagery,
+            ),
+
+        colors,
+    };
+}
+
+
+function getNamingOptions(
+    shapeData: unknown,
+): NamingOptionView[] {
+    const shape =
+        asStageData(
+            shapeData,
+        );
+
+    const naming =
+        asStageData(
+            shape.naming,
+        );
+
+    const rawOptions =
+        Array.isArray(
+            naming.options,
+        )
+            ? naming.options
+            : Array.isArray(
+                shape.naming_options,
             )
-                ? deliverData.launch_assets
+                ? shape.naming_options
                 : [];
 
-        const assets: LaunchAsset[] =
-            rawAssets
+    return rawOptions
+        .filter(isRecord)
+        .map(
+            (
+                option,
+            ): NamingOptionView => ({
+                name:
+                    readString(
+                        option.name,
+                    ) ??
+                    readString(
+                        option.title,
+                    ) ??
+                    "Untitled option",
+
+                rationale:
+                    readString(
+                        option.rationale,
+                    ) ??
+                    readString(
+                        option.reasoning,
+                    ),
+
+                territory:
+                    readString(
+                        option.territory,
+                    ),
+
+                strengths:
+                    readStrings(
+                        option.strengths,
+                    ),
+
+                concerns:
+                    readStrings(
+                        option.concerns,
+                    ),
+            }),
+        );
+}
+
+
+function getChallenge(
+    challengeData: unknown,
+) {
+    const challenge =
+        asStageData(
+            challengeData,
+        );
+
+    const rawIssues =
+        challenge.issues ??
+        challenge.risks;
+
+    const issues =
+        Array.isArray(
+            rawIssues,
+        )
+            ? rawIssues
                 .filter(isRecord)
                 .map(
                     (
-                        asset,
-                    ): LaunchAsset => ({
-                        name:
+                        item,
+                    ) => ({
+                        title:
                             readString(
-                                asset.name,
+                                item.title,
                             ) ??
-                            "Launch asset",
+                            readString(
+                                item.name,
+                            ) ??
+                            "Brand issue",
 
                         description:
                             readString(
-                                asset.description,
-                            ) ?? "",
+                                item.description,
+                            ) ??
+                            readString(
+                                item.issue,
+                            ) ??
+                            readString(
+                                item.explanation,
+                            ) ??
+                            "Review this area before launch.",
 
-                        priority:
-                            readPriority(
-                                asset.priority,
+                        severity:
+                            readString(
+                                item.severity,
                             ),
                     }),
+                )
+            : [];
+
+    return {
+        summary:
+            readString(
+                challenge.summary,
+            ) ??
+            readString(
+                challenge.overall_assessment,
+            ),
+
+        issues,
+
+        strengths:
+            readStrings(
+                challenge.strengths,
+            ),
+
+        recommendations:
+            readStrings(
+                challenge.recommendations,
+            ),
+    };
+}
+
+
+export default function BrandKitPage() {
+    const router =
+        useRouter();
+
+    const params =
+        useParams<{
+            id?: string;
+        }>();
+
+    const projectId =
+        params?.id ?? null;
+
+
+    const {
+        project,
+        loading:
+        projectLoading,
+        error:
+        projectError,
+    } =
+        useProject(
+            projectId,
+        );
+
+
+    const {
+        brand,
+        loading:
+        brandLoading,
+        error:
+        brandError,
+    } =
+        useBrandKit(
+            projectId,
+        );
+
+
+    const {
+        latestRun,
+    } =
+        useWorkflow(
+            projectId,
+        );
+
+
+    /*
+     * First use the latest workflow result.
+     * Fall back to persisted brand state.
+     */
+    const discoveryData =
+        useMemo(() => {
+            const run =
+                latestRun(
+                    "discovery",
                 );
 
-        return {
-            name:
+            if (
+                run?.output_data
+            ) {
+                return unwrapWorkflowOutput(
+                    run.output_data,
+                );
+            }
+
+            return asStageData(
+                getStageData(
+                    brand?.data,
+                    "discovery",
+                ),
+            );
+        }, [
+            latestRun,
+            brand?.data,
+        ]);
+
+
+    const positioningData =
+        useMemo(() => {
+            const run =
+                latestRun(
+                    "positioning",
+                );
+
+            if (
+                run?.output_data
+            ) {
+                return unwrapWorkflowOutput(
+                    run.output_data,
+                );
+            }
+
+            return asStageData(
+                getStageData(
+                    brand?.data,
+                    "positioning",
+                ),
+            );
+        }, [
+            latestRun,
+            brand?.data,
+        ]);
+
+
+    const shapeData =
+        useMemo(() => {
+            const run =
+                latestRun(
+                    "shape",
+                );
+
+            if (
+                run?.output_data
+            ) {
+                return unwrapWorkflowOutput(
+                    run.output_data,
+                );
+            }
+
+            return asStageData(
+                getStageData(
+                    brand?.data,
+                    "shape",
+                ),
+            );
+        }, [
+            latestRun,
+            brand?.data,
+        ]);
+
+
+    const visualizeData =
+        useMemo(() => {
+            const run =
+                latestRun(
+                    "visualize",
+                );
+
+            if (
+                run?.output_data
+            ) {
+                return unwrapWorkflowOutput(
+                    run.output_data,
+                );
+            }
+
+            return asStageData(
+                getStageData(
+                    brand?.data,
+                    "visualize",
+                ),
+            );
+        }, [
+            latestRun,
+            brand?.data,
+        ]);
+
+
+    const challengeData =
+        useMemo(() => {
+            const run =
+                latestRun(
+                    "challenge",
+                );
+
+            if (
+                run?.output_data
+            ) {
+                return unwrapWorkflowOutput(
+                    run.output_data,
+                );
+            }
+
+            return asStageData(
+                getStageData(
+                    brand?.data,
+                    "challenge",
+                ),
+            );
+        }, [
+            latestRun,
+            brand?.data,
+        ]);
+
+
+    const assembled =
+        useMemo(() => {
+            const discovery =
+                asStageData(
+                    discoveryData,
+                );
+
+            const positioning =
+                asStageData(
+                    positioningData,
+                );
+
+            const shape =
+                asStageData(
+                    shapeData,
+                );
+
+            const direction =
+                getSelectedDirection(
+                    positioning,
+                );
+
+            const personality =
+                getPersonality(
+                    shape,
+                );
+
+            const voice =
+                getVoice(
+                    shape,
+                );
+
+            const visual =
+                getVisualIdentity(
+                    visualizeData,
+                );
+
+            const challenge =
+                getChallenge(
+                    challengeData,
+                );
+
+            const namingOptions =
+                getNamingOptions(
+                    shape,
+                );
+
+
+            const brandName =
                 readString(
-                    deliverData.name,
+                    shape.brand_name,
                 ) ??
                 readString(
-                    deliverData.brand_name,
+                    shape.brandName,
                 ) ??
+                namingOptions[0]
+                    ?.name ??
                 project?.name ??
-                "Untitled brand",
+                "Untitled brand";
 
-            tagline:
+
+            const positioningText =
                 readString(
-                    deliverData.tagline,
+                    direction.positioning,
                 ) ??
                 readString(
-                    deliverData.tag_line,
-                ),
-
-            summary:
-                readString(
-                    deliverData.summary,
+                    direction.title,
                 ) ??
                 readString(
-                    deliverData.brand_summary,
-                ),
-
-            positioning:
-                readString(
-                    strategy.positioning,
-                ),
-
-            audience:
-                readString(
-                    strategy.audience,
+                    direction.name,
                 ) ??
                 readString(
-                    strategy.target_audience,
-                ),
+                    direction.description,
+                );
 
-            valueProposition:
+
+            const audience =
+                readText(
+                    direction.audience,
+                ) ??
+                readText(
+                    direction.target_audience,
+                ) ??
+                readText(
+                    discovery.target_users,
+                ) ??
+                readText(
+                    discovery.user_segments,
+                );
+
+
+            const valueProposition =
                 readString(
-                    strategy.value_proposition,
+                    direction.value_proposition,
                 ) ??
                 readString(
-                    strategy.valueProposition,
-                ),
-
-            differentiation:
-                readString(
-                    strategy.differentiation,
-                ),
-
-            promise:
-                readString(
-                    strategy.promise,
+                    direction.valueProposition,
                 ) ??
                 readString(
-                    strategy.brand_promise,
-                ),
+                    direction.value,
+                ) ??
+                readString(
+                    direction.promise,
+                );
 
-            personality:
-                readStrings(
-                    deliverData.personality,
-                ),
 
-            voicePrinciples:
-                readStrings(
+            const differentiation =
+                readString(
+                    direction.differentiator,
+                ) ??
+                readString(
+                    direction.differentiation,
+                );
+
+
+            const summary =
+                readString(
+                    discovery.problem,
+                ) ??
+                readString(
+                    discovery.context,
+                ) ??
+                readString(
+                    discovery.key_insight,
+                ) ??
+                readString(
+                    challenge.summary,
+                );
+
+
+            const generatedAssets:
+                LaunchAsset[] = [];
+
+
+            if (
+                positioningText ||
+                audience ||
+                valueProposition ||
+                differentiation
+            ) {
+                generatedAssets.push({
+                    name:
+                        "Brand strategy sheet",
+
+                    description:
+                        "Positioning, audience, value proposition, and differentiation assembled from the workflow.",
+
+                    priority:
+                        "now",
+                });
+            }
+
+
+            if (
+                personality.traits.length > 0 ||
+                voice.principles.length > 0 ||
+                namingOptions.length > 0
+            ) {
+                generatedAssets.push({
+                    name:
+                        "Brand expression guide",
+
+                    description:
+                        "Personality, naming, and voice decisions assembled from Shape.",
+
+                    priority:
+                        "now",
+                });
+            }
+
+
+            if (
+                visual.direction ||
+                visual.colors.length > 0 ||
+                visual.typography.length > 0 ||
+                visual.imagery.length > 0
+            ) {
+                generatedAssets.push({
+                    name:
+                        "Visual identity reference",
+
+                    description:
+                        "Visual direction, palette, typography, and imagery assembled from Visualize.",
+
+                    priority:
+                        "now",
+                });
+            }
+
+
+            if (
+                challenge.recommendations.length > 0
+            ) {
+                generatedAssets.push({
+                    name:
+                        "Challenge action list",
+
+                    description:
+                        "Recommended actions carried forward from Challenge.",
+
+                    priority:
+                        "next",
+                });
+            }
+
+
+            return {
+                name:
+                    brandName,
+
+                tagline:
+                    readString(
+                        shape.tagline,
+                    ),
+
+                summary,
+
+                positioning:
+                    positioningText,
+
+                audience,
+
+                valueProposition,
+
+                differentiation,
+
+                promise:
+                    readString(
+                        direction.promise,
+                    ),
+
+                personality:
+                    personality.traits,
+
+                voicePrinciples:
                     voice.principles,
-                ),
 
-            doExamples:
-                readStrings(
-                    voice.do_examples,
-                ),
+                doExamples:
+                    voice.doExamples,
 
-            dontExamples:
-                readStrings(
-                    voice.dont_examples,
-                ),
+                dontExamples:
+                    voice.dontExamples,
 
-            visualDirection:
-                readString(
+                visualDirection:
                     visual.direction,
-                ) ??
-                readString(
-                    visual.visual_direction,
-                ),
 
-            typography:
-                readStrings(
+                typography:
                     visual.typography,
-                ),
 
-            imagery:
-                readStrings(
+                imagery:
                     visual.imagery,
-                ),
 
-            colors,
+                colors:
+                    visual.colors,
 
-            assets,
-        };
-    }, [
-        deliverData,
-        project?.name,
-    ]);
+                assets:
+                    generatedAssets,
+
+                namingOptions,
+
+                challenge,
+            };
+        }, [
+            discoveryData,
+            positioningData,
+            shapeData,
+            visualizeData,
+            challengeData,
+            project?.name,
+        ]);
+
 
     if (
         projectLoading ||
         brandLoading
     ) {
         return (
-            <main>
-                <div className="site-container">
-                    <header className="site-header">
-                        <div className="brand-lockup">
-                            <span
-                                className="brand-mark"
-                                aria-hidden="true"
-                            >
-                                <span />
-                                <span />
-                                <span />
-                                <span />
-                            </span>
+            <section className="stage-page">
+                <div className="stage-loading">
 
-                            <span>
-                                <strong>
-                                    Brand Intelligence
-                                </strong>
+                    <span className="section-eyebrow">
+                        Stage 06 · Deliver
+                    </span>
 
-                                <small className="muted">
-                                    Connected brand thinking
-                                </small>
-                            </span>
-                        </div>
+                    <h1>
+                        Assembling your brand kit…
+                    </h1>
 
-                        <span className="muted small">
-                            Stage 06
-                        </span>
-                    </header>
+                    <p>
+                        Bringing the strategic,
+                        verbal, visual, and challenge
+                        decisions together.
+                    </p>
 
-                    <section
-                        className="surface"
-                        style={{
-                            maxWidth:
-                                "860px",
-                            minHeight:
-                                "420px",
-                            margin:
-                                "56px auto 80px",
-                            display:
-                                "flex",
-                            alignItems:
-                                "center",
-                            justifyContent:
-                                "center",
-                            textAlign:
-                                "center",
-                        }}
-                    >
-                        <div
-                            className="stack"
-                            style={{
-                                alignItems:
-                                    "center",
-                                maxWidth:
-                                    "560px",
-                            }}
-                        >
-                            <span className="eyebrow">
-                                Stage 06 · Deliver
-                            </span>
-
-                            <div
-                                aria-hidden="true"
-                                style={{
-                                    width:
-                                        "58px",
-                                    height:
-                                        "58px",
-                                    margin:
-                                        "8px 0",
-                                    borderRadius:
-                                        "50%",
-                                    background:
-                                        "var(--bg)",
-                                    boxShadow:
-                                        "var(--inset-shadow)",
-                                }}
-                            />
-
-                            <h1>
-                                Assembling your brand kit
-                            </h1>
-
-                            <p className="muted">
-                                Bringing the strategic,
-                                verbal, and visual
-                                decisions together.
-                            </p>
-                        </div>
-                    </section>
                 </div>
-            </main>
+            </section>
         );
     }
+
 
     if (!project) {
         return (
-            <main>
-                <div className="site-container">
-                    <header className="site-header">
-                        <div className="brand-lockup">
-                            <span
-                                className="brand-mark"
-                                aria-hidden="true"
-                            >
-                                <span />
-                                <span />
-                                <span />
-                                <span />
-                            </span>
+            <section className="stage-page">
+                <div className="stage-error">
 
-                            <span>
-                                <strong>
-                                    Brand Intelligence
-                                </strong>
+                    <span className="section-eyebrow">
+                        Project unavailable
+                    </span>
 
-                                <small className="muted">
-                                    Connected brand thinking
-                                </small>
-                            </span>
-                        </div>
-                    </header>
+                    <h1>
+                        We could not load this project.
+                    </h1>
 
-                    <section
-                        className="surface"
-                        style={{
-                            maxWidth:
-                                "760px",
-                            margin:
-                                "56px auto 80px",
-                            padding:
-                                "42px 32px",
-                            textAlign:
-                                "center",
-                        }}
+                    <p>
+                        {projectError ??
+                            "The requested project could not be found."}
+                    </p>
+
+                    <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() =>
+                            router.push("/")
+                        }
                     >
-                        <div
-                            className="stack"
-                            style={{
-                                alignItems:
-                                    "center",
-                            }}
-                        >
-                            <span className="eyebrow">
-                                Project unavailable
-                            </span>
+                        Back to home
+                    </button>
 
-                            <h1>
-                                We could not load this
-                                project.
-                            </h1>
-
-                            <p className="muted">
-                                {projectError ??
-                                    "The requested project could not be found."}
-                            </p>
-
-                            <button
-                                type="button"
-                                className="button primary"
-                                onClick={() =>
-                                    router.push(
-                                        "/",
-                                    )
-                                }
-                            >
-                                Back to home
-                            </button>
-                        </div>
-                    </section>
                 </div>
-            </main>
+            </section>
         );
     }
 
+
     return (
-        <main>
-            <div className="site-container">
-                <header className="site-header">
-                    <div className="brand-lockup">
-                        <span
-                            className="brand-mark"
-                            aria-hidden="true"
-                        >
-                            <span />
-                            <span />
-                            <span />
-                            <span />
-                        </span>
+        <section className="stage-page">
 
-                        <span>
-                            <strong>
-                                Brand Intelligence
-                            </strong>
+            <div className="stage-hero">
 
-                            <small className="muted">
-                                Connected brand thinking
-                            </small>
-                        </span>
-                    </div>
+                <div>
 
-                    <div
-                        style={{
-                            display:
-                                "flex",
-                            alignItems:
-                                "center",
-                            gap:
-                                "12px",
-                        }}
-                    >
-                        <span className="muted small">
-                            {project.name}
-                        </span>
+                    <span className="section-eyebrow">
+                        Stage 06 · Deliver
+                    </span>
 
-                        <button
-                            type="button"
-                            className="button compact"
-                            onClick={() =>
-                                router.push(
-                                    `/project/${encodeURIComponent(
-                                        project.id,
-                                    )}/challenge`,
-                                )
-                            }
-                        >
-                            Back
-                        </button>
-                    </div>
-                </header>
+                    <h1>
+                        Your launch-ready brand system.
+                    </h1>
 
-                <section
-                    style={{
-                        padding:
-                            "52px 0 34px",
-                    }}
+                    <p>
+                        The decisions from the entire
+                        workflow are assembled here into
+                        one practical brand kit.
+                    </p>
+
+                </div>
+
+
+                <div className="stage-principle">
+
+                    <span>
+                        Principle
+                    </span>
+
+                    <strong>
+                        Turn connected decisions into a
+                        usable system.
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            {brandError ? (
+                <div
+                    className="form-error"
+                    role="alert"
                 >
+                    {brandError}
+                </div>
+            ) : null}
+
+
+            <BrandHeader
+                name={
+                    assembled.name
+                }
+                tagline={
+                    assembled.tagline
+                }
+                summary={
+                    assembled.summary
+                }
+            />
+
+
+            <BrandStrategy
+                positioning={
+                    assembled.positioning
+                }
+                audience={
+                    assembled.audience
+                }
+                valueProposition={
+                    assembled.valueProposition
+                }
+                differentiation={
+                    assembled.differentiation
+                }
+                promise={
+                    assembled.promise
+                }
+            />
+
+
+            <BrandVoice
+                personality={
+                    assembled.personality
+                }
+                principles={
+                    assembled.voicePrinciples
+                }
+                doExamples={
+                    assembled.doExamples
+                }
+                dontExamples={
+                    assembled.dontExamples
+                }
+            />
+
+
+            <VisualIdentity
+                direction={
+                    assembled.visualDirection
+                }
+                colors={
+                    assembled.colors
+                }
+                typography={
+                    assembled.typography
+                }
+                imagery={
+                    assembled.imagery
+                }
+            />
+
+
+            {assembled.namingOptions.length > 0 ? (
+                <section
+                    className="stage-card"
+                >
+
                     <div
-                        style={{
-                            display:
-                                "grid",
-                            gridTemplateColumns:
-                                "minmax(0, 1.35fr) minmax(260px, 0.65fr)",
-                            gap:
-                                "34px",
-                            alignItems:
-                                "start",
-                        }}
+                        className="stage-card-header"
                     >
+
                         <div>
-                            <span className="eyebrow">
-                                Stage 06 · Deliver
+
+                            <span
+                                className="section-eyebrow"
+                            >
+                                Naming exploration
                             </span>
 
-                            <h1
-                                style={{
-                                    maxWidth:
-                                        "900px",
-                                    fontSize:
-                                        "clamp(2.6rem, 5.2vw, 4.7rem)",
-                                    lineHeight:
-                                        1.04,
-                                    letterSpacing:
-                                        "-0.055em",
-                                }}
-                            >
-                                Your launch-ready
-                                brand system.
-                            </h1>
+                            <h2>
+                                Names generated during
+                                Shape.
+                            </h2>
 
-                            <p
-                                className="muted"
-                                style={{
-                                    maxWidth:
-                                        "700px",
-                                    marginTop:
-                                        "24px",
-                                    fontSize:
-                                        "1rem",
-                                    lineHeight:
-                                        1.75,
-                                }}
-                            >
-                                The decisions from the
-                                workflow are assembled here
-                                into one practical brand kit.
-                            </p>
                         </div>
 
-                        <aside
-                            className="surface"
-                            style={{
-                                padding:
-                                    "24px",
-                            }}
+
+                        <span
+                            className="stage-card-index"
                         >
-                            <span className="eyebrow">
-                                Working principle
-                            </span>
+                            {
+                                assembled
+                                    .namingOptions
+                                    .length
+                            }
+                        </span>
 
-                            <strong
-                                style={{
-                                    display:
-                                        "block",
-                                    fontSize:
-                                        "1.05rem",
-                                    lineHeight:
-                                        1.5,
-                                }}
-                            >
-                                Turn connected decisions
-                                into a usable system.
-                            </strong>
-
-                            <p
-                                className="muted small"
-                                style={{
-                                    marginTop:
-                                        "10px",
-                                    lineHeight:
-                                        1.6,
-                                }}
-                            >
-                                Strategy, expression,
-                                visual identity, and launch
-                                considerations come
-                                together here.
-                            </p>
-                        </aside>
                     </div>
 
+
                     <div
-                        className="surface"
-                        style={{
-                            marginTop:
-                                "34px",
-                            padding:
-                                "18px 20px",
-                            overflowX:
-                                "auto",
-                        }}
+                        className="brand-strategy-grid"
                     >
-                        <div
-                            style={{
-                                display:
-                                    "grid",
-                                gridTemplateColumns:
-                                    "repeat(6, minmax(145px, 1fr))",
-                                minWidth:
-                                    "880px",
-                                gap:
-                                    "10px",
-                            }}
-                        >
-                            {workflowStages.map(
-                                (stage) => (
-                                    <div
-                                        key={
-                                            stage.number
-                                        }
-                                        style={{
-                                            padding:
-                                                "12px 10px",
-                                            borderRadius:
-                                                "12px",
-                                            background:
-                                                "var(--bg)",
-                                            boxShadow:
-                                                stage.active
-                                                    ? "var(--inset-shadow)"
-                                                    : "none",
-                                        }}
+                        {assembled.namingOptions.map(
+                            (
+                                option,
+                                index,
+                            ) => (
+                                <article
+                                    key={`${option.name}-${index}`}
+                                    className="brand-strategy-item"
+                                >
+
+                                    <span
+                                        className="positioning-detail-label"
                                     >
-                                        <div
-                                            style={{
-                                                display:
-                                                    "flex",
-                                                alignItems:
-                                                    "center",
-                                                gap:
-                                                    "10px",
-                                            }}
-                                        >
-                                            <span
-                                                className="preview-number"
-                                                style={{
-                                                    width:
-                                                        "30px",
-                                                    height:
-                                                        "30px",
-                                                    boxShadow:
-                                                        stage.active
-                                                            ? "var(--small-shadow)"
-                                                            : "var(--inset-shadow)",
-                                                }}
-                                            >
-                                                {
-                                                    stage.number
-                                                }
-                                            </span>
+                                        Option {index + 1}
+                                    </span>
 
-                                            <strong
-                                                style={{
-                                                    fontSize:
-                                                        "0.8rem",
-                                                }}
-                                            >
-                                                {
-                                                    stage.title
-                                                }
-                                            </strong>
-                                        </div>
+                                    <h3>
+                                        {
+                                            option.name
+                                        }
+                                    </h3>
 
-                                        <p
-                                            className="muted"
-                                            style={{
-                                                marginTop:
-                                                    "9px",
-                                                fontSize:
-                                                    "0.68rem",
-                                                lineHeight:
-                                                    1.45,
-                                            }}
-                                        >
+                                    {option.rationale ? (
+                                        <p>
                                             {
-                                                stage.description
+                                                option.rationale
                                             }
                                         </p>
-                                    </div>
+                                    ) : null}
+
+                                    {option.territory ? (
+                                        <p
+                                            className="muted small"
+                                        >
+                                            Territory: {
+                                                option.territory
+                                            }
+                                        </p>
+                                    ) : null}
+
+                                    {option.strengths.length > 0 ? (
+                                        <ul
+                                            className="result-list"
+                                        >
+                                            {option.strengths.map(
+                                                (
+                                                    item,
+                                                    strengthIndex,
+                                                ) => (
+                                                    <li
+                                                        key={`${item}-${strengthIndex}`}
+                                                    >
+                                                        {item}
+                                                    </li>
+                                                ),
+                                            )}
+                                        </ul>
+                                    ) : null}
+
+                                </article>
+                            ),
+                        )}
+                    </div>
+
+                </section>
+            ) : null}
+
+
+            {assembled.challenge.summary ||
+                assembled.challenge.issues.length > 0 ||
+                assembled.challenge.strengths.length > 0 ||
+                assembled.challenge.recommendations.length > 0 ? (
+                <section
+                    className="stage-card"
+                >
+
+                    <div
+                        className="stage-card-header"
+                    >
+
+                        <div>
+
+                            <span
+                                className="section-eyebrow"
+                            >
+                                Challenge review
+                            </span>
+
+                            <h2>
+                                What needs attention
+                                before launch?
+                            </h2>
+
+                        </div>
+
+
+                        <span
+                            className="stage-card-index"
+                        >
+                            {
+                                assembled.challenge
+                                    .issues.length
+                            }
+                        </span>
+
+                    </div>
+
+
+                    {assembled.challenge.summary ? (
+                        <p
+                            className="stage-card-description"
+                        >
+                            {
+                                assembled.challenge.summary
+                            }
+                        </p>
+                    ) : null}
+
+
+                    {assembled.challenge.issues.length > 0 ? (
+                        <div
+                            className="brand-strategy-grid"
+                        >
+                            {assembled.challenge.issues.map(
+                                (
+                                    issue,
+                                    index,
+                                ) => (
+                                    <article
+                                        key={`${issue.title}-${index}`}
+                                        className="brand-strategy-item"
+                                    >
+
+                                        <span
+                                            className="positioning-detail-label"
+                                        >
+                                            {
+                                                issue.severity ??
+                                                "Issue"
+                                            }
+                                        </span>
+
+                                        <h3>
+                                            {
+                                                issue.title
+                                            }
+                                        </h3>
+
+                                        <p>
+                                            {
+                                                issue.description
+                                            }
+                                        </p>
+
+                                    </article>
                                 ),
                             )}
                         </div>
-                    </div>
-                </section>
+                    ) : null}
 
-                {brandError ? (
-                    <div
-                        className="notice error-notice"
-                        role="alert"
-                        style={{
-                            marginBottom:
-                                "30px",
-                        }}
-                    >
-                        <div>
-                            <strong>
-                                The brand kit could not be
-                                fully loaded.
-                            </strong>
 
-                            <p>
-                                {brandError}
-                            </p>
-                        </div>
-                    </div>
-                ) : null}
-
-                <section
-                    style={{
-                        display:
-                            "grid",
-                        gap:
-                            "30px",
-                        paddingBottom:
-                            "80px",
-                    }}
-                >
-                    <div
-                        className="surface"
-                        style={{
-                            padding:
-                                "18px 24px",
-                            display:
-                                "flex",
-                            alignItems:
-                                "center",
-                            gap:
-                                "14px",
-                        }}
-                    >
-                        <span
-                            style={{
-                                display:
-                                    "grid",
-                                width:
-                                    "38px",
-                                height:
-                                    "38px",
-                                flexShrink:
-                                    0,
-                                placeItems:
-                                    "center",
-                                borderRadius:
-                                    "11px",
-                                background:
-                                    "var(--accent-soft)",
-                                color:
-                                    "var(--accent-dark)",
-                                boxShadow:
-                                    "var(--small-shadow)",
-                                fontSize:
-                                    "0.75rem",
-                                fontWeight:
-                                    800,
-                            }}
+                    {assembled.challenge.strengths.length > 0 ? (
+                        <div
+                            className="brand-kit-section"
                         >
-                            ✓
-                        </span>
 
-                        <div>
-                            <strong>
-                                Brand system assembled
-                            </strong>
-
-                            <p className="muted small">
-                                The following sections bring
-                                together the decisions made
-                                throughout the workflow.
-                            </p>
-                        </div>
-                    </div>
-
-                    <BrandHeader
-                        name={
-                            assembled.name
-                        }
-                        tagline={
-                            assembled.tagline
-                        }
-                        summary={
-                            assembled.summary
-                        }
-                    />
-
-                    <BrandStrategy
-                        positioning={
-                            assembled.positioning
-                        }
-                        audience={
-                            assembled.audience
-                        }
-                        valueProposition={
-                            assembled.valueProposition
-                        }
-                        differentiation={
-                            assembled.differentiation
-                        }
-                        promise={
-                            assembled.promise
-                        }
-                    />
-
-                    <BrandVoice
-                        personality={
-                            assembled.personality
-                        }
-                        principles={
-                            assembled.voicePrinciples
-                        }
-                        doExamples={
-                            assembled.doExamples
-                        }
-                        dontExamples={
-                            assembled.dontExamples
-                        }
-                    />
-
-                    <VisualIdentity
-                        direction={
-                            assembled.visualDirection
-                        }
-                        colors={
-                            assembled.colors
-                        }
-                        typography={
-                            assembled.typography
-                        }
-                        imagery={
-                            assembled.imagery
-                        }
-                    />
-
-                    <LaunchAssets
-                        assets={
-                            assembled.assets
-                        }
-                    />
-
-                    <div
-                        className="surface"
-                        style={{
-                            padding:
-                                "28px 30px",
-                            display:
-                                "flex",
-                            alignItems:
-                                "center",
-                            justifyContent:
-                                "space-between",
-                            gap:
-                                "20px",
-                            flexWrap:
-                                "wrap",
-                        }}
-                    >
-                        <div>
-                            <span className="eyebrow">
-                                Workflow complete
+                            <span
+                                className="positioning-detail-label"
+                            >
+                                Strengths
                             </span>
 
-                            <h3>
-                                Your brand system is ready
-                                to review and use.
-                            </h3>
-
-                            <p
-                                className="muted small"
-                                style={{
-                                    marginTop:
-                                        "6px",
-                                }}
+                            <ul
+                                className="result-list"
                             >
-                                All available decisions have
-                                been assembled into this
-                                brand kit.
-                            </p>
+                                {assembled.challenge.strengths.map(
+                                    (
+                                        item,
+                                        index,
+                                    ) => (
+                                        <li
+                                            key={`${item}-${index}`}
+                                        >
+                                            {item}
+                                        </li>
+                                    ),
+                                )}
+                            </ul>
+
                         </div>
+                    ) : null}
 
-                        <button
-                            type="button"
-                            className="button primary"
-                            onClick={() =>
-                                router.push(
-                                    `/project/${encodeURIComponent(
-                                        project.id,
-                                    )}/discovery`,
-                                )
-                            }
+
+                    {assembled.challenge.recommendations.length > 0 ? (
+                        <div
+                            className="brand-kit-section"
                         >
-                            Review workflow →
-                        </button>
-                    </div>
+
+                            <span
+                                className="positioning-detail-label"
+                            >
+                                Recommended actions
+                            </span>
+
+                            <ol
+                                className="result-list result-list-numbered"
+                            >
+                                {assembled.challenge.recommendations.map(
+                                    (
+                                        item,
+                                        index,
+                                    ) => (
+                                        <li
+                                            key={`${item}-${index}`}
+                                        >
+                                            {item}
+                                        </li>
+                                    ),
+                                )}
+                            </ol>
+
+                        </div>
+                    ) : null}
+
                 </section>
+            ) : null}
 
-                <footer className="site-footer">
-                    <span>
-                        Brand Intelligence
-                    </span>
 
-                    <span>
-                        Stage 06 · Deliver
-                    </span>
-                </footer>
-            </div>
-        </main>
+            <LaunchAssets
+                assets={
+                    assembled.assets
+                }
+            />
+
+
+            <footer
+                className="site-footer"
+            >
+
+                <span>
+                    Brand Intelligence
+                </span>
+
+                <span>
+                    Stage 06 · Deliver
+                </span>
+
+            </footer>
+
+        </section>
     );
 }

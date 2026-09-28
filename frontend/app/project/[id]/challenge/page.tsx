@@ -18,6 +18,7 @@ import {
     isRecord,
 } from "../../../../lib/brand";
 
+
 function readString(
     value: unknown,
 ): string | undefined {
@@ -30,6 +31,7 @@ function readString(
 
     return undefined;
 }
+
 
 function readStrings(
     value: unknown,
@@ -45,6 +47,7 @@ function readStrings(
     );
 }
 
+
 function readSeverity(
     value: unknown,
 ): BrandIssue["severity"] {
@@ -58,6 +61,7 @@ function readSeverity(
 
     return undefined;
 }
+
 
 function readStatus(
     value: unknown,
@@ -73,6 +77,7 @@ function readStatus(
     return "warning";
 }
 
+
 function normalizeIssues(
     value: unknown,
 ): BrandIssue[] {
@@ -83,25 +88,39 @@ function normalizeIssues(
     return value
         .filter(isRecord)
         .map(
-            (item): BrandIssue => ({
+            (
+                item,
+            ): BrandIssue => ({
                 title:
-                    readString(item.title) ??
-                    readString(item.name) ??
+                    readString(
+                        item.title,
+                    ) ??
+                    readString(
+                        item.name,
+                    ) ??
                     "Brand issue",
 
                 description:
-                    readString(item.description) ??
-                    readString(item.issue) ??
-                    readString(item.explanation) ??
+                    readString(
+                        item.description,
+                    ) ??
+                    readString(
+                        item.issue,
+                    ) ??
+                    readString(
+                        item.explanation,
+                    ) ??
                     "The challenge stage identified an area that needs review.",
 
-                severity: readSeverity(
-                    item.severity,
-                ),
+                severity:
+                    readSeverity(
+                        item.severity,
+                    ),
 
-                category: readString(
-                    item.category,
-                ),
+                category:
+                    readString(
+                        item.category,
+                    ),
 
                 recommendation:
                     readString(
@@ -114,6 +133,7 @@ function normalizeIssues(
         );
 }
 
+
 function normalizeConsistency(
     value: unknown,
 ): ConsistencyItem[] {
@@ -124,15 +144,22 @@ function normalizeConsistency(
     return value
         .filter(isRecord)
         .map(
-            (item): ConsistencyItem => ({
+            (
+                item,
+            ): ConsistencyItem => ({
                 area:
-                    readString(item.area) ??
-                    readString(item.name) ??
+                    readString(
+                        item.area,
+                    ) ??
+                    readString(
+                        item.name,
+                    ) ??
                     "Consistency area",
 
-                status: readStatus(
-                    item.status,
-                ),
+                status:
+                    readStatus(
+                        item.status,
+                    ),
 
                 explanation:
                     readString(
@@ -146,44 +173,67 @@ function normalizeConsistency(
         );
 }
 
+
+function unwrapWorkflowOutput(
+    value: unknown,
+): Record<string, unknown> {
+    if (!isRecord(value)) {
+        return {};
+    }
+
+    if (isRecord(value.result)) {
+        return value.result;
+    }
+
+    return value;
+}
+
+
 const workflowStages = [
     {
         number: "01",
         title: "Discover",
-        description: "Understand the opportunity",
+        description:
+            "Understand the opportunity",
         active: false,
     },
     {
         number: "02",
         title: "Position",
-        description: "Choose the strategic direction",
+        description:
+            "Choose the strategic direction",
         active: false,
     },
     {
         number: "03",
         title: "Shape",
-        description: "Build the brand expression",
+        description:
+            "Build the brand expression",
         active: false,
     },
     {
         number: "04",
         title: "Visualize",
-        description: "Explore the visual identity",
+        description:
+            "Explore the visual identity",
         active: false,
     },
     {
         number: "05",
         title: "Challenge",
-        description: "Stress-test the decisions",
+        description:
+            "Stress-test the decisions",
         active: true,
     },
     {
         number: "06",
         title: "Deliver",
-        description: "Assemble the final system",
+        description:
+            "Assemble the final system",
         active: false,
     },
 ];
+
 
 export default function ChallengePage() {
     const router = useRouter();
@@ -195,93 +245,123 @@ export default function ChallengePage() {
     const projectId =
         params?.id ?? null;
 
+
     const {
         project,
-        loading: projectLoading,
-        error: projectError,
+        loading:
+        projectLoading,
+        error:
+        projectError,
     } = useProject(projectId);
+
 
     const {
         brand,
-        loading: brandLoading,
-        error: brandError,
+        loading:
+        brandLoading,
+        error:
+        brandError,
     } = useBrandKit(projectId);
+
 
     const {
         startStage,
         latestRun,
         submitting,
-        error: workflowError,
+        error:
+        workflowError,
     } = useWorkflow(projectId);
+
 
     const challengeRun =
         latestRun("challenge");
 
-    const challengeData =
-        getStageData(
+
+    /*
+     * Prefer the newest workflow response.
+     *
+     * AIML returns:
+     *
+     * {
+     *   "result": {
+     *      ...
+     *   }
+     * }
+     *
+     * Fall back to persisted brand state
+     * when there is no workflow result.
+     */
+    const challengeData:
+        Record<string, unknown> =
+        useMemo(() => {
+            if (
+                challengeRun?.output_data
+            ) {
+                return unwrapWorkflowOutput(
+                    challengeRun.output_data,
+                );
+            }
+
+            const stored =
+                getStageData(
+                    brand?.data,
+                    "challenge",
+                );
+
+            return isRecord(stored)
+                ? stored
+                : {};
+        }, [
+            challengeRun?.output_data,
             brand?.data,
-            "challenge",
-        );
+        ]);
 
-    const normalized = useMemo(() => {
-        if (!isRecord(challengeData)) {
+
+    const normalized =
+        useMemo(() => {
+            const rawIssues =
+                challengeData.issues ??
+                challengeData.risks ??
+                [];
+
+            const rawConsistency =
+                challengeData.consistency ??
+                challengeData.consistency_checks ??
+                [];
+
             return {
-                summary: undefined as
-                    | string
-                    | undefined,
+                summary:
+                    readString(
+                        challengeData.summary,
+                    ) ??
+                    readString(
+                        challengeData.overall_assessment,
+                    ),
 
-                issues: [] as BrandIssue[],
+                issues:
+                    normalizeIssues(
+                        rawIssues,
+                    ),
 
-                strengths: [] as string[],
+                strengths:
+                    readStrings(
+                        challengeData.strengths,
+                    ),
 
                 recommendations:
-                    [] as string[],
+                    readStrings(
+                        challengeData.recommendations,
+                    ),
 
                 consistency:
-                    [] as ConsistencyItem[],
+                    normalizeConsistency(
+                        rawConsistency,
+                    ),
             };
-        }
+        }, [
+            challengeData,
+        ]);
 
-        const rawIssues =
-            challengeData.issues ??
-            challengeData.risks ??
-            [];
-
-        const rawConsistency =
-            challengeData.consistency ??
-            challengeData.consistency_checks ??
-            [];
-
-        return {
-            summary:
-                readString(
-                    challengeData.summary,
-                ) ??
-                readString(
-                    challengeData.overall_assessment,
-                ),
-
-            issues:
-                normalizeIssues(
-                    rawIssues,
-                ),
-
-            strengths:
-                readStrings(
-                    challengeData.strengths,
-                ),
-
-            recommendations:
-                readStrings(
-                    challengeData.recommendations,
-                ),
-
-            consistency:
-                normalizeConsistency(
-                    rawConsistency,
-                ),
-        };
-    }, [challengeData]);
 
     const handleRunChallenge =
         async () => {
@@ -292,18 +372,21 @@ export default function ChallengePage() {
             await startStage(
                 "challenge",
                 {
-                    idea: project.idea,
+                    idea:
+                        project.idea,
 
                     brand_context:
                         brand?.data ?? {},
 
-                    selections: {},
+                    selections:
+                        {},
 
                     instructions:
                         "Stress-test the current brand system. Identify contradictions, gaps, risks, weak assumptions, and inconsistencies across strategy, personality, naming, voice, and visual identity. Return structured issues, consistency checks, strengths, and recommended actions.",
                 },
             );
         };
+
 
     const isRunning =
         submitting ||
@@ -312,13 +395,19 @@ export default function ChallengePage() {
         challengeRun?.status ===
         "running";
 
+
     const hasResult =
         normalized.issues.length > 0 ||
         normalized.consistency.length > 0 ||
         normalized.strengths.length > 0 ||
-        normalized.recommendations.length >
-        0 ||
-        Boolean(normalized.summary);
+        normalized.recommendations.length > 0 ||
+        Boolean(
+            normalized.summary,
+        ) ||
+        Boolean(
+            challengeRun?.output_data,
+        );
+
 
     if (
         projectLoading ||
@@ -327,8 +416,13 @@ export default function ChallengePage() {
         return (
             <main>
                 <div className="site-container">
-                    <header className="site-header">
-                        <div className="brand-lockup">
+
+                    <header
+                        className="site-header"
+                    >
+                        <div
+                            className="brand-lockup"
+                        >
                             <span
                                 className="brand-mark"
                                 aria-hidden="true"
@@ -344,16 +438,21 @@ export default function ChallengePage() {
                                     Brand Intelligence
                                 </strong>
 
-                                <small className="muted">
+                                <small
+                                    className="muted"
+                                >
                                     Connected brand thinking
                                 </small>
                             </span>
                         </div>
 
-                        <span className="muted small">
+                        <span
+                            className="muted small"
+                        >
                             Stage 05
                         </span>
                     </header>
+
 
                     <section
                         className="surface"
@@ -383,7 +482,9 @@ export default function ChallengePage() {
                                     "560px",
                             }}
                         >
-                            <span className="eyebrow">
+                            <span
+                                className="eyebrow"
+                            >
                                 Stage 05 · Challenge
                             </span>
 
@@ -406,12 +507,16 @@ export default function ChallengePage() {
                             />
 
                             <h1>
-                                Loading the challenge stage
+                                Loading the
+                                challenge stage
                             </h1>
 
-                            <p className="muted">
-                                Restoring the current brand system
-                                before stress-testing it.
+                            <p
+                                className="muted"
+                            >
+                                Restoring the current
+                                brand system before
+                                stress-testing it.
                             </p>
                         </div>
                     </section>
@@ -420,12 +525,18 @@ export default function ChallengePage() {
         );
     }
 
+
     if (!project) {
         return (
             <main>
                 <div className="site-container">
-                    <header className="site-header">
-                        <div className="brand-lockup">
+
+                    <header
+                        className="site-header"
+                    >
+                        <div
+                            className="brand-lockup"
+                        >
                             <span
                                 className="brand-mark"
                                 aria-hidden="true"
@@ -441,12 +552,15 @@ export default function ChallengePage() {
                                     Brand Intelligence
                                 </strong>
 
-                                <small className="muted">
+                                <small
+                                    className="muted"
+                                >
                                     Connected brand thinking
                                 </small>
                             </span>
                         </div>
                     </header>
+
 
                     <section
                         className="surface"
@@ -468,16 +582,20 @@ export default function ChallengePage() {
                                     "center",
                             }}
                         >
-                            <span className="eyebrow">
+                            <span
+                                className="eyebrow"
+                            >
                                 Project unavailable
                             </span>
 
                             <h1>
-                                We could not load this
-                                project.
+                                We could not load
+                                this project.
                             </h1>
 
-                            <p className="muted">
+                            <p
+                                className="muted"
+                            >
                                 {projectError ??
                                     "The requested project could not be found."}
                             </p>
@@ -500,11 +618,17 @@ export default function ChallengePage() {
         );
     }
 
+
     return (
         <main>
             <div className="site-container">
-                <header className="site-header">
-                    <div className="brand-lockup">
+
+                <header
+                    className="site-header"
+                >
+                    <div
+                        className="brand-lockup"
+                    >
                         <span
                             className="brand-mark"
                             aria-hidden="true"
@@ -520,11 +644,14 @@ export default function ChallengePage() {
                                 Brand Intelligence
                             </strong>
 
-                            <small className="muted">
+                            <small
+                                className="muted"
+                            >
                                 Connected brand thinking
                             </small>
                         </span>
                     </div>
+
 
                     <div
                         style={{
@@ -536,7 +663,9 @@ export default function ChallengePage() {
                                 "12px",
                         }}
                     >
-                        <span className="muted small">
+                        <span
+                            className="muted small"
+                        >
                             {project.name}
                         </span>
 
@@ -556,12 +685,14 @@ export default function ChallengePage() {
                     </div>
                 </header>
 
+
                 <section
                     style={{
                         padding:
                             "52px 0 34px",
                     }}
                 >
+
                     <div
                         style={{
                             display:
@@ -574,8 +705,12 @@ export default function ChallengePage() {
                                 "start",
                         }}
                     >
+
                         <div>
-                            <span className="eyebrow">
+
+                            <span
+                                className="eyebrow"
+                            >
                                 Stage 05 · Challenge
                             </span>
 
@@ -591,7 +726,8 @@ export default function ChallengePage() {
                                         "-0.055em",
                                 }}
                             >
-                                Stress-test the brand.
+                                Stress-test the
+                                brand.
                             </h1>
 
                             <p
@@ -613,7 +749,9 @@ export default function ChallengePage() {
                                 treating the identity as
                                 launch-ready.
                             </p>
+
                         </div>
+
 
                         <aside
                             className="surface"
@@ -622,7 +760,10 @@ export default function ChallengePage() {
                                     "24px",
                             }}
                         >
-                            <span className="eyebrow">
+
+                            <span
+                                className="eyebrow"
+                            >
                                 Working principle
                             </span>
 
@@ -636,8 +777,8 @@ export default function ChallengePage() {
                                         1.5,
                                 }}
                             >
-                                Find weaknesses before
-                                launch.
+                                Find weaknesses
+                                before launch.
                             </strong>
 
                             <p
@@ -649,13 +790,17 @@ export default function ChallengePage() {
                                         1.6,
                                 }}
                             >
-                                A useful challenge looks
-                                across the connected brand
-                                system instead of checking
-                                one decision in isolation.
+                                A useful challenge
+                                looks across the
+                                connected brand system
+                                instead of checking one
+                                decision in isolation.
                             </p>
+
                         </aside>
+
                     </div>
+
 
                     <div
                         className="surface"
@@ -680,8 +825,11 @@ export default function ChallengePage() {
                                     "10px",
                             }}
                         >
+
                             {workflowStages.map(
-                                (stage) => (
+                                (
+                                    stage,
+                                ) => (
                                     <div
                                         key={
                                             stage.number
@@ -699,6 +847,7 @@ export default function ChallengePage() {
                                                     : "none",
                                         }}
                                     >
+
                                         <div
                                             style={{
                                                 display:
@@ -709,6 +858,7 @@ export default function ChallengePage() {
                                                     "10px",
                                             }}
                                         >
+
                                             <span
                                                 className="preview-number"
                                                 style={{
@@ -737,7 +887,9 @@ export default function ChallengePage() {
                                                     stage.title
                                                 }
                                             </strong>
+
                                         </div>
+
 
                                         <p
                                             className="muted"
@@ -754,12 +906,16 @@ export default function ChallengePage() {
                                                 stage.description
                                             }
                                         </p>
+
                                     </div>
                                 ),
                             )}
+
                         </div>
                     </div>
+
                 </section>
+
 
                 {workflowError ||
                     brandError ? (
@@ -772,6 +928,7 @@ export default function ChallengePage() {
                         }}
                     >
                         <div>
+
                             <strong>
                                 We could not complete
                                 that step.
@@ -781,11 +938,14 @@ export default function ChallengePage() {
                                 {workflowError ??
                                     brandError}
                             </p>
+
                         </div>
                     </div>
                 ) : null}
 
+
                 {!hasResult ? (
+
                     <section
                         className="surface"
                         style={{
@@ -795,6 +955,7 @@ export default function ChallengePage() {
                                 "42px",
                         }}
                     >
+
                         <div
                             style={{
                                 display:
@@ -807,13 +968,17 @@ export default function ChallengePage() {
                                     "30px",
                             }}
                         >
+
                             <div
                                 style={{
                                     maxWidth:
                                         "720px",
                                 }}
                             >
-                                <span className="eyebrow">
+
+                                <span
+                                    className="eyebrow"
+                                >
                                     Ready for review
                                 </span>
 
@@ -831,12 +996,16 @@ export default function ChallengePage() {
                                             1.7,
                                     }}
                                 >
-                                    The challenge pass examines
-                                    the accumulated brand context
-                                    rather than starting from the
+                                    The challenge pass
+                                    examines the
+                                    accumulated brand
+                                    context rather than
+                                    starting from the
                                     original idea alone.
                                 </p>
+
                             </div>
+
 
                             <span
                                 className="preview-number"
@@ -853,7 +1022,9 @@ export default function ChallengePage() {
                             >
                                 05
                             </span>
+
                         </div>
+
 
                         <div
                             style={{
@@ -869,6 +1040,7 @@ export default function ChallengePage() {
                                     "wrap",
                             }}
                         >
+
                             <button
                                 type="button"
                                 className="button primary"
@@ -884,21 +1056,28 @@ export default function ChallengePage() {
                                     : "Run brand challenge →"}
                             </button>
 
-                            <span className="muted small">
-                                Strategy, personality,
-                                naming, voice, and visual
-                                decisions will be checked
-                                together.
+                            <span
+                                className="muted small"
+                            >
+                                The current strategy,
+                                personality, naming,
+                                voice, and visual system
+                                will be reviewed together.
                             </span>
+
                         </div>
+
                     </section>
+
                 ) : (
+
                     <section
                         style={{
                             paddingBottom:
                                 "80px",
                         }}
                     >
+
                         <div
                             className="surface"
                             style={{
@@ -908,13 +1087,16 @@ export default function ChallengePage() {
                                     "28px 32px",
                             }}
                         >
-                            <span className="eyebrow">
+
+                            <span
+                                className="eyebrow"
+                            >
                                 Challenge results
                             </span>
 
                             <h2>
-                                What needs attention before
-                                delivery?
+                                What needs attention
+                                before delivery?
                             </h2>
 
                             {normalized.summary ? (
@@ -929,7 +1111,9 @@ export default function ChallengePage() {
                                             1.75,
                                     }}
                                 >
-                                    {normalized.summary}
+                                    {
+                                        normalized.summary
+                                    }
                                 </p>
                             ) : (
                                 <p
@@ -949,7 +1133,9 @@ export default function ChallengePage() {
                                     recommended actions below.
                                 </p>
                             )}
+
                         </div>
+
 
                         <CritiquePanel
                             summary={
@@ -966,11 +1152,13 @@ export default function ChallengePage() {
                             }
                         />
 
+
                         <ConsistencyCheck
                             items={
                                 normalized.consistency
                             }
                         />
+
 
                         <div
                             className="surface"
@@ -991,14 +1179,18 @@ export default function ChallengePage() {
                                     "wrap",
                             }}
                         >
+
                             <div>
-                                <span className="eyebrow">
+
+                                <span
+                                    className="eyebrow"
+                                >
                                     Continue the workflow
                                 </span>
 
                                 <h3>
-                                    Ready to assemble the
-                                    brand kit?
+                                    Ready to assemble
+                                    the brand kit?
                                 </h3>
 
                                 <p
@@ -1013,7 +1205,9 @@ export default function ChallengePage() {
                                     project context as you
                                     move into delivery.
                                 </p>
+
                             </div>
+
 
                             <div
                                 style={{
@@ -1027,6 +1221,7 @@ export default function ChallengePage() {
                                         "wrap",
                                 }}
                             >
+
                                 <button
                                     type="button"
                                     className="button"
@@ -1042,6 +1237,7 @@ export default function ChallengePage() {
                                         : "Run challenge again"}
                                 </button>
 
+
                                 <button
                                     type="button"
                                     className="button primary"
@@ -1056,14 +1252,22 @@ export default function ChallengePage() {
                                         )
                                     }
                                 >
-                                    Continue to brand kit →
+                                    Continue to brand
+                                    kit →
                                 </button>
+
                             </div>
+
                         </div>
+
                     </section>
+
                 )}
 
-                <footer className="site-footer">
+
+                <footer
+                    className="site-footer"
+                >
                     <span>
                         Brand Intelligence
                     </span>
@@ -1072,6 +1276,7 @@ export default function ChallengePage() {
                         Stage 05 · Challenge
                     </span>
                 </footer>
+
             </div>
         </main>
     );

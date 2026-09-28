@@ -17,9 +17,9 @@ import { useWorkflow } from "../../../../hooks/useWorkflow";
 import {
     buildStageInput,
     getStageData,
-    hasContent,
     isRecord,
 } from "../../../../lib/brand";
+
 
 function readString(
     value: unknown,
@@ -34,6 +34,7 @@ function readString(
     return undefined;
 }
 
+
 function readStrings(
     value: unknown,
 ): string[] {
@@ -47,6 +48,7 @@ function readStrings(
             item.trim().length > 0,
     );
 }
+
 
 function normalizeNamingOptions(
     value: unknown,
@@ -93,9 +95,10 @@ function normalizeNamingOptions(
                         item.naming_territory,
                     ),
 
-                strengths: readStrings(
-                    item.strengths,
-                ),
+                strengths:
+                    readStrings(
+                        item.strengths,
+                    ),
 
                 concerns:
                     readStrings(
@@ -110,6 +113,7 @@ function normalizeNamingOptions(
             }),
         );
 }
+
 
 function normalizeShapeData(
     value: unknown,
@@ -135,27 +139,29 @@ function normalizeShapeData(
             ? value.personality
             : null;
 
-    const personality = personalitySource
-        ? readStrings(
-            personalitySource.traits ??
-            personalitySource.attributes ??
-            personalitySource.personality,
-        )
-        : readStrings(
-            value.personality,
-        );
+    const personality =
+        personalitySource
+            ? readStrings(
+                personalitySource.traits ??
+                personalitySource.attributes ??
+                personalitySource.personality,
+            )
+            : readStrings(
+                value.personality,
+            );
 
-    const avoidTraits = personalitySource
-        ? readStrings(
-            personalitySource.avoid_traits ??
-            personalitySource.avoidTraits ??
-            personalitySource.traits_to_avoid,
-        )
-        : readStrings(
-            value.avoid_traits ??
-            value.avoidTraits ??
-            value.traits_to_avoid,
-        );
+    const avoidTraits =
+        personalitySource
+            ? readStrings(
+                personalitySource.avoid_traits ??
+                personalitySource.avoidTraits ??
+                personalitySource.traits_to_avoid,
+            )
+            : readStrings(
+                value.avoid_traits ??
+                value.avoidTraits ??
+                value.traits_to_avoid,
+            );
 
     const rawRationale =
         personalitySource?.rationale ??
@@ -167,7 +173,10 @@ function normalizeShapeData(
     > = {};
 
     if (isRecord(rawRationale)) {
-        for (const [key, entry] of Object.entries(
+        for (const [
+            key,
+            entry,
+        ] of Object.entries(
             rawRationale,
         )) {
             if (
@@ -195,49 +204,53 @@ function normalizeShapeData(
             ? value.voice
             : null;
 
-    const voicePrinciples = voiceSource
-        ? readStrings(
-            voiceSource.principles ??
-            voiceSource.voice_principles,
-        )
-        : readStrings(
-            value.voice_principles ??
-            value.voicePrinciples,
-        );
+    const voicePrinciples =
+        voiceSource
+            ? readStrings(
+                voiceSource.principles ??
+                voiceSource.voice_principles,
+            )
+            : readStrings(
+                value.voice_principles ??
+                value.voicePrinciples,
+            );
 
-    const doExamples = voiceSource
-        ? readStrings(
-            voiceSource.do_examples ??
-            voiceSource.doExamples ??
-            voiceSource.do,
-        )
-        : readStrings(
-            value.do_examples ??
-            value.doExamples,
-        );
+    const doExamples =
+        voiceSource
+            ? readStrings(
+                voiceSource.do_examples ??
+                voiceSource.doExamples ??
+                voiceSource.do,
+            )
+            : readStrings(
+                value.do_examples ??
+                value.doExamples,
+            );
 
-    const dontExamples = voiceSource
-        ? readStrings(
-            voiceSource.dont_examples ??
-            voiceSource.dontExamples ??
-            voiceSource.avoid,
-        )
-        : readStrings(
-            value.dont_examples ??
-            value.dontExamples ??
-            value.avoid,
-        );
+    const dontExamples =
+        voiceSource
+            ? readStrings(
+                voiceSource.dont_examples ??
+                voiceSource.dontExamples ??
+                voiceSource.avoid,
+            )
+            : readStrings(
+                value.dont_examples ??
+                value.dontExamples ??
+                value.avoid,
+            );
 
-    const sampleMessages = voiceSource
-        ? readStrings(
-            voiceSource.sample_messages ??
-            voiceSource.sampleMessages ??
-            voiceSource.examples,
-        )
-        : readStrings(
-            value.sample_messages ??
-            value.sampleMessages,
-        );
+    const sampleMessages =
+        voiceSource
+            ? readStrings(
+                voiceSource.sample_messages ??
+                voiceSource.sampleMessages ??
+                voiceSource.examples,
+            )
+            : readStrings(
+                value.sample_messages ??
+                value.sampleMessages,
+            );
 
     return {
         personality,
@@ -251,44 +264,79 @@ function normalizeShapeData(
     };
 }
 
+
+/*
+ * AIML workflow responses are wrapped like:
+ *
+ * {
+ *   "result": {
+ *      ...
+ *   }
+ * }
+ *
+ * This helper unwraps that response so the UI can use
+ * the actual Shape data.
+ */
+function unwrapWorkflowOutput(
+    value: unknown,
+): Record<string, unknown> {
+    if (!isRecord(value)) {
+        return {};
+    }
+
+    if (isRecord(value.result)) {
+        return value.result;
+    }
+
+    return value;
+}
+
+
 const workflowStages = [
     {
         number: "01",
         title: "Discover",
-        description: "Understand the opportunity",
+        description:
+            "Understand the opportunity",
         active: false,
     },
     {
         number: "02",
         title: "Position",
-        description: "Choose the strategic direction",
+        description:
+            "Choose the strategic direction",
         active: false,
     },
     {
         number: "03",
         title: "Shape",
-        description: "Build the brand expression",
+        description:
+            "Build the brand expression",
         active: true,
     },
     {
         number: "04",
         title: "Visualize",
-        description: "Explore the visual identity",
+        description:
+            "Explore the visual identity",
         active: false,
     },
     {
         number: "05",
         title: "Challenge",
-        description: "Stress-test the decisions",
+        description:
+            "Stress-test the decisions",
         active: false,
     },
     {
         number: "06",
         title: "Deliver",
-        description: "Assemble the final system",
+        description:
+            "Assemble the final system",
         active: false,
     },
 ];
+
 
 export default function ShapePage() {
     const router = useRouter();
@@ -300,46 +348,88 @@ export default function ShapePage() {
     const projectId =
         params?.id ?? null;
 
+
     const {
         project,
-        loading: projectLoading,
-        error: projectError,
+        loading:
+        projectLoading,
+        error:
+        projectError,
     } = useProject(projectId);
+
 
     const {
         brand,
-        loading: brandLoading,
-        error: brandError,
+        loading:
+        brandLoading,
+        error:
+        brandError,
     } = useBrandKit(projectId);
+
 
     const {
         startStage,
         latestRun,
         submitting,
-        error: workflowError,
+        error:
+        workflowError,
     } = useWorkflow(projectId);
+
 
     const shapeRun =
         latestRun("shape");
 
-    const shapeData =
-        getStageData(
+
+    /*
+     * IMPORTANT:
+     *
+     * First read the latest workflow output.
+     * Only fall back to persisted brand state if
+     * there is no workflow output.
+     */
+    const shapeData:
+        Record<string, unknown> =
+        useMemo(() => {
+            if (
+                shapeRun?.output_data
+            ) {
+                return unwrapWorkflowOutput(
+                    shapeRun.output_data,
+                );
+            }
+
+            const stored =
+                getStageData(
+                    brand?.data,
+                    "shape",
+                );
+
+            return isRecord(stored)
+                ? stored
+                : {};
+        }, [
+            shapeRun?.output_data,
             brand?.data,
-            "shape",
+        ]);
+
+
+    const normalized =
+        useMemo(
+            () =>
+                normalizeShapeData(
+                    shapeData,
+                ),
+            [shapeData],
         );
 
-    const normalized = useMemo(
-        () =>
-            normalizeShapeData(
-                shapeData,
-            ),
-        [shapeData],
-    );
 
     const [
         selectedName,
         setSelectedName,
-    ] = useState<string | null>(null);
+    ] = useState<
+        string | null
+    >(null);
+
 
     const handleGenerate =
         async () => {
@@ -358,13 +448,16 @@ export default function ShapePage() {
             );
         };
 
-    const handleNameSelect = (
-        option: NamingOption,
-    ) => {
-        setSelectedName(
-            option.name,
-        );
-    };
+
+    const handleNameSelect =
+        (
+            option: NamingOption,
+        ) => {
+            setSelectedName(
+                option.name,
+            );
+        };
+
 
     const isRunning =
         submitting ||
@@ -373,10 +466,24 @@ export default function ShapePage() {
         shapeRun?.status ===
         "running";
 
+
     const hasResult =
-        hasContent(shapeData) ||
-        shapeRun?.status ===
-        "completed";
+        normalized.personality
+            .length > 0 ||
+        normalized.naming
+            .length > 0 ||
+        normalized.voicePrinciples
+            .length > 0 ||
+        normalized.doExamples
+            .length > 0 ||
+        normalized.dontExamples
+            .length > 0 ||
+        normalized.sampleMessages
+            .length > 0 ||
+        Boolean(
+            shapeRun?.output_data,
+        );
+
 
     if (
         projectLoading ||
@@ -385,8 +492,13 @@ export default function ShapePage() {
         return (
             <main>
                 <div className="site-container">
-                    <header className="site-header">
-                        <div className="brand-lockup">
+
+                    <header
+                        className="site-header"
+                    >
+                        <div
+                            className="brand-lockup"
+                        >
                             <span
                                 className="brand-mark"
                                 aria-hidden="true"
@@ -402,27 +514,39 @@ export default function ShapePage() {
                                     Brand Intelligence
                                 </strong>
 
-                                <small className="muted">
+                                <small
+                                    className="muted"
+                                >
                                     Connected brand thinking
                                 </small>
                             </span>
                         </div>
 
-                        <span className="muted small">
+                        <span
+                            className="muted small"
+                        >
                             Stage 03
                         </span>
                     </header>
 
+
                     <section
                         className="surface"
                         style={{
-                            margin: "56px auto 80px",
-                            maxWidth: "860px",
-                            minHeight: "420px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            textAlign: "center",
+                            margin:
+                                "56px auto 80px",
+                            maxWidth:
+                                "860px",
+                            minHeight:
+                                "420px",
+                            display:
+                                "flex",
+                            alignItems:
+                                "center",
+                            justifyContent:
+                                "center",
+                            textAlign:
+                                "center",
                         }}
                     >
                         <div
@@ -434,16 +558,21 @@ export default function ShapePage() {
                                     "560px",
                             }}
                         >
-                            <span className="eyebrow">
+                            <span
+                                className="eyebrow"
+                            >
                                 Stage 03 · Shape
                             </span>
 
                             <div
                                 aria-hidden="true"
                                 style={{
-                                    width: "58px",
-                                    height: "58px",
-                                    margin: "8px 0",
+                                    width:
+                                        "58px",
+                                    height:
+                                        "58px",
+                                    margin:
+                                        "8px 0",
                                     borderRadius:
                                         "50%",
                                     background:
@@ -457,7 +586,9 @@ export default function ShapePage() {
                                 Loading the brand shape
                             </h1>
 
-                            <p className="muted">
+                            <p
+                                className="muted"
+                            >
                                 Restoring the strategic
                                 context before shaping
                                 the brand.
@@ -469,12 +600,18 @@ export default function ShapePage() {
         );
     }
 
+
     if (!project) {
         return (
             <main>
                 <div className="site-container">
-                    <header className="site-header">
-                        <div className="brand-lockup">
+
+                    <header
+                        className="site-header"
+                    >
+                        <div
+                            className="brand-lockup"
+                        >
                             <span
                                 className="brand-mark"
                                 aria-hidden="true"
@@ -490,19 +627,25 @@ export default function ShapePage() {
                                     Brand Intelligence
                                 </strong>
 
-                                <small className="muted">
+                                <small
+                                    className="muted"
+                                >
                                     Connected brand thinking
                                 </small>
                             </span>
                         </div>
                     </header>
 
+
                     <section
                         className="surface"
                         style={{
-                            maxWidth: "760px",
-                            margin: "56px auto 80px",
-                            padding: "42px 32px",
+                            maxWidth:
+                                "760px",
+                            margin:
+                                "56px auto 80px",
+                            padding:
+                                "42px 32px",
                             textAlign:
                                 "center",
                         }}
@@ -514,16 +657,20 @@ export default function ShapePage() {
                                     "center",
                             }}
                         >
-                            <span className="eyebrow">
+                            <span
+                                className="eyebrow"
+                            >
                                 Project unavailable
                             </span>
 
                             <h1>
-                                We could not load this
-                                project.
+                                We could not load
+                                this project.
                             </h1>
 
-                            <p className="muted">
+                            <p
+                                className="muted"
+                            >
                                 {projectError ??
                                     "The requested project could not be found."}
                             </p>
@@ -532,9 +679,7 @@ export default function ShapePage() {
                                 type="button"
                                 className="button primary"
                                 onClick={() =>
-                                    router.push(
-                                        "/",
-                                    )
+                                    router.push("/")
                                 }
                             >
                                 Back to home
@@ -546,11 +691,17 @@ export default function ShapePage() {
         );
     }
 
+
     return (
         <main>
             <div className="site-container">
-                <header className="site-header">
-                    <div className="brand-lockup">
+
+                <header
+                    className="site-header"
+                >
+                    <div
+                        className="brand-lockup"
+                    >
                         <span
                             className="brand-mark"
                             aria-hidden="true"
@@ -566,7 +717,9 @@ export default function ShapePage() {
                                 Brand Intelligence
                             </strong>
 
-                            <small className="muted">
+                            <small
+                                className="muted"
+                            >
                                 Connected brand thinking
                             </small>
                         </span>
@@ -574,13 +727,17 @@ export default function ShapePage() {
 
                     <div
                         style={{
-                            display: "flex",
+                            display:
+                                "flex",
                             alignItems:
                                 "center",
-                            gap: "12px",
+                            gap:
+                                "12px",
                         }}
                     >
-                        <span className="muted small">
+                        <span
+                            className="muted small"
+                        >
                             {project.name}
                         </span>
 
@@ -600,23 +757,31 @@ export default function ShapePage() {
                     </div>
                 </header>
 
+
                 <section
                     style={{
-                        padding: "52px 0 34px",
+                        padding:
+                            "52px 0 34px",
                     }}
                 >
+
                     <div
                         style={{
-                            display: "grid",
+                            display:
+                                "grid",
                             gridTemplateColumns:
                                 "minmax(0, 1.35fr) minmax(260px, 0.65fr)",
-                            gap: "34px",
+                            gap:
+                                "34px",
                             alignItems:
                                 "start",
                         }}
                     >
+
                         <div>
-                            <span className="eyebrow">
+                            <span
+                                className="eyebrow"
+                            >
                                 Stage 03 · Shape
                             </span>
 
@@ -648,14 +813,16 @@ export default function ShapePage() {
                                         1.75,
                                 }}
                             >
-                                Turn the chosen strategic
-                                direction into personality,
+                                Turn the chosen
+                                strategic direction
+                                into personality,
                                 naming, and a distinctive
                                 voice. This is where the
                                 strategy starts becoming
                                 recognizable.
                             </p>
                         </div>
+
 
                         <aside
                             className="surface"
@@ -664,7 +831,9 @@ export default function ShapePage() {
                                     "24px",
                             }}
                         >
-                            <span className="eyebrow">
+                            <span
+                                className="eyebrow"
+                            >
                                 Working principle
                             </span>
 
@@ -678,7 +847,8 @@ export default function ShapePage() {
                                         1.5,
                                 }}
                             >
-                                Strategy should become
+                                Strategy should
+                                become
                                 recognizable.
                             </strong>
 
@@ -691,13 +861,16 @@ export default function ShapePage() {
                                         1.6,
                                 }}
                             >
-                                Personality, naming, and
-                                language should reinforce
-                                the position established
+                                Personality,
+                                naming, and language
+                                should reinforce the
+                                position established
                                 earlier.
                             </p>
                         </aside>
+
                     </div>
+
 
                     <div
                         className="surface"
@@ -718,11 +891,15 @@ export default function ShapePage() {
                                     "repeat(6, minmax(145px, 1fr))",
                                 minWidth:
                                     "880px",
-                                gap: "10px",
+                                gap:
+                                    "10px",
                             }}
                         >
+
                             {workflowStages.map(
-                                (stage) => (
+                                (
+                                    stage,
+                                ) => (
                                     <div
                                         key={
                                             stage.number
@@ -740,13 +917,15 @@ export default function ShapePage() {
                                                     : "none",
                                         }}
                                     >
+
                                         <div
                                             style={{
                                                 display:
                                                     "flex",
                                                 alignItems:
                                                     "center",
-                                                gap: "10px",
+                                                gap:
+                                                    "10px",
                                             }}
                                         >
                                             <span
@@ -794,12 +973,16 @@ export default function ShapePage() {
                                                 stage.description
                                             }
                                         </p>
+
                                     </div>
                                 ),
                             )}
+
                         </div>
                     </div>
+
                 </section>
+
 
                 {workflowError ||
                     brandError ? (
@@ -825,7 +1008,9 @@ export default function ShapePage() {
                     </div>
                 ) : null}
 
+
                 {!hasResult ? (
+
                     <section
                         className="surface"
                         style={{
@@ -835,6 +1020,7 @@ export default function ShapePage() {
                                 "42px",
                         }}
                     >
+
                         <div
                             style={{
                                 display:
@@ -843,16 +1029,20 @@ export default function ShapePage() {
                                     "flex-start",
                                 justifyContent:
                                     "space-between",
-                                gap: "30px",
+                                gap:
+                                    "30px",
                             }}
                         >
+
                             <div
                                 style={{
                                     maxWidth:
                                         "720px",
                                 }}
                             >
-                                <span className="eyebrow">
+                                <span
+                                    className="eyebrow"
+                                >
                                     Brand expression
                                 </span>
 
@@ -873,13 +1063,14 @@ export default function ShapePage() {
                                 >
                                     Generate brand
                                     personality,
-                                    naming options, and
-                                    a practical voice
-                                    system from the
-                                    accumulated brand
-                                    context.
+                                    naming options,
+                                    and a practical
+                                    voice system from
+                                    the accumulated
+                                    brand context.
                                 </p>
                             </div>
+
 
                             <span
                                 className="preview-number"
@@ -896,7 +1087,9 @@ export default function ShapePage() {
                             >
                                 03
                             </span>
+
                         </div>
+
 
                         <div
                             style={{
@@ -906,11 +1099,13 @@ export default function ShapePage() {
                                     "flex",
                                 alignItems:
                                     "center",
-                                gap: "18px",
+                                gap:
+                                    "18px",
                                 flexWrap:
                                     "wrap",
                             }}
                         >
+
                             <button
                                 type="button"
                                 className="button primary"
@@ -926,20 +1121,27 @@ export default function ShapePage() {
                                     : "Shape the brand →"}
                             </button>
 
-                            <span className="muted small">
+                            <span
+                                className="muted small"
+                            >
                                 Earlier strategic
                                 decisions will be
                                 carried forward.
                             </span>
+
                         </div>
+
                     </section>
+
                 ) : (
+
                     <section
                         style={{
                             paddingBottom:
                                 "80px",
                         }}
                     >
+
                         <div
                             className="surface"
                             style={{
@@ -949,7 +1151,9 @@ export default function ShapePage() {
                                     "28px 32px",
                             }}
                         >
-                            <span className="eyebrow">
+                            <span
+                                className="eyebrow"
+                            >
                                 Brand character
                             </span>
 
@@ -979,6 +1183,7 @@ export default function ShapePage() {
                             </p>
                         </div>
 
+
                         <PersonalityCard
                             traits={
                                 normalized.personality
@@ -990,6 +1195,7 @@ export default function ShapePage() {
                                 normalized.personalityRationale
                             }
                         />
+
 
                         <NamingCard
                             options={
@@ -1006,6 +1212,7 @@ export default function ShapePage() {
                             }
                         />
 
+
                         <VoiceCard
                             principles={
                                 normalized.voicePrinciples
@@ -1021,6 +1228,7 @@ export default function ShapePage() {
                             }
                         />
 
+
                         {selectedName ? (
                             <div
                                 className="surface"
@@ -1035,13 +1243,17 @@ export default function ShapePage() {
                                         "center",
                                     justifyContent:
                                         "space-between",
-                                    gap: "20px",
+                                    gap:
+                                        "20px",
                                     flexWrap:
                                         "wrap",
                                 }}
                             >
+
                                 <div>
-                                    <span className="eyebrow">
+                                    <span
+                                        className="eyebrow"
+                                    >
                                         Naming decision
                                     </span>
 
@@ -1069,6 +1281,7 @@ export default function ShapePage() {
                                     </p>
                                 </div>
 
+
                                 <span
                                     className="tag"
                                     style={{
@@ -1078,8 +1291,10 @@ export default function ShapePage() {
                                 >
                                     Selected
                                 </span>
+
                             </div>
                         ) : null}
+
 
                         <div
                             className="stage-navigation"
@@ -1088,6 +1303,7 @@ export default function ShapePage() {
                                     "30px",
                             }}
                         >
+
                             <button
                                 type="button"
                                 className="button"
@@ -1102,6 +1318,7 @@ export default function ShapePage() {
                                     ? "Running..."
                                     : "Shape again"}
                             </button>
+
 
                             <button
                                 type="button"
@@ -1120,11 +1337,16 @@ export default function ShapePage() {
                                 Continue to visual
                                 identity →
                             </button>
+
                         </div>
+
                     </section>
                 )}
 
-                <footer className="site-footer">
+
+                <footer
+                    className="site-footer"
+                >
                     <span>
                         Brand Intelligence
                     </span>
@@ -1133,6 +1355,7 @@ export default function ShapePage() {
                         Stage 03 · Shape
                     </span>
                 </footer>
+
             </div>
         </main>
     );
