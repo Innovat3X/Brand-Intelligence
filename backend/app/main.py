@@ -35,9 +35,31 @@ app = FastAPI(
 )
 
 
+# ------------------------------------------------------------------
+# CORS
+# ------------------------------------------------------------------
+# Preserve origins configured through the backend settings while
+# explicitly allowing the deployed Vercel frontend.
+configured_origins = list(
+    settings.cors_origins_list
+)
+
+required_origins = [
+    "https://brand-intelligence-xi.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+allowed_origins = list(
+    dict.fromkeys(
+        configured_origins + required_origins
+    )
+)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
